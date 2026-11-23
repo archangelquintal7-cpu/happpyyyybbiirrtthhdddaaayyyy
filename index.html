@@ -144,6 +144,13 @@ body{background:var(--bg);display:flex;align-items:center;justify-content:center
   };
   var def={to:'Mahal',msg:'Hindi ko alam kung paano sasabihin nang maayos, kaya sinulat ko na lang.\nSalamat sa lahat ng tawa, sa kwentuhan, at sa pag-intindi mo. Ikaw ang paborito kong parte ng bawat araw.\nMahal kita. ♥',from:'ako',pal:'rose',photos:[]};
   var data=Object.assign({},def);
+  var INDEX_PHOTOS = [
+  "https://drive.google.com/thumbnail?id=1MbsrtDgTYihzApujovM_FWvt6yfRwf1B&sz=w1000",
+  "https://drive.google.com/thumbnail?id=1T_HcjMnp6CYrib3lJn7HpxyNO7eswZ-a&sz=w1000",
+  "https://drive.google.com/thumbnail?id=1JtwFPKVFu0MhRTG9sLN2wUkk5H5UuPRg&sz=w1000"
+];
+
+data.photos = INDEX_PHOTOS.slice();
   try{var s=localStorage.getItem('sobre-data'); if(s) data=Object.assign(data,JSON.parse(s));}catch(e){}
   try{var ph=localStorage.getItem('sobre-photos'); if(ph) data.photos=JSON.parse(ph);}catch(e){}
 
@@ -154,7 +161,8 @@ body{background:var(--bg);display:flex;align-items:center;justify-content:center
     if(!API_URL || API_URL.indexOf('PASTE_')===0) return;
     var cb='sobreCallback_'+Date.now();
     window[cb]=function(remote){
-      try{if(remote && remote.ok && remote.data){data=Object.assign({},def,remote.data); sharedReady=true; render();
+      try{if(remote && remote.ok && remote.data){data=Object.assign({},def,remote.data);
+data.photos=INDEX_PHOTOS.slice(); sharedReady=true; render();
         $('fTo').value=data.to||''; $('fMsg').value=data.msg||''; $('fFrom').value=data.from||'';
       }}finally{delete window[cb]; script.remove();}
     };
