@@ -62,7 +62,7 @@ body{background:var(--bg);display:flex;align-items:center;justify-content:center
 .note{font-size:13px;opacity:.75;margin:8px 0 0}
 .fw{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .galbody,.gc{position:relative;z-index:1}
-.hb{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8%);left:0;right:0;text-align:center;z-index:2;pointer-events:none;font:700 clamp(2.6rem,11vw,4.6rem) Caveat,"Segoe Script",cursive;color:#ff69b4;text-shadow:0 0 14px rgba(255, 60, 255, 0.8),0 0 34px rgba(255,90,120,.55);animation:hbin 1s cubic-bezier(.2,.9,.3,1.3) both}
+.hb{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8%);left:0;right:0;text-align:center;z-index:2;pointer-events:none;font:700 clamp(2.6rem,11vw,4.6rem) Caveat,"Segoe Script",cursive;color:#ff69b4;text-shadow:0 0 14px rgba(255,170,60,.8),0 0 34px rgba(255,90,120,.55);animation:hbin 1s cubic-bezier(.2,.9,.3,1.3) both}
 .hb[hidden]{display:none}
 @keyframes hbin{from{opacity:0;transform:scale(.4) translateY(20px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.gal,.pol,.peek,.hb{animation:none}}
@@ -147,6 +147,30 @@ body{background:var(--bg);display:flex;align-items:center;justify-content:center
   try{var s=localStorage.getItem('sobre-data'); if(s) data=Object.assign(data,JSON.parse(s));}catch(e){}
   try{var ph=localStorage.getItem('sobre-photos'); if(ph) data.photos=JSON.parse(ph);}catch(e){}
 
+  // Google Apps Script shared database endpoint. Paste your deployed Web App URL here.
+  var API_URL='https://script.google.com/macros/s/AKfycbyvFlzRX7B7I9V6WQVkcYx0f3WJFpXK1RLzlMYO22POWZoIdjfzoIDNowBOAYyB9kM2/exec';
+  var sharedReady=false;
+  function loadShared(){
+    if(!API_URL || API_URL.indexOf('PASTE_')===0) return;
+    var cb='sobreCallback_'+Date.now();
+    window[cb]=function(remote){
+      try{if(remote && remote.ok && remote.data){data=Object.assign({},def,remote.data); sharedReady=true; render();
+        $('fTo').value=data.to||''; $('fMsg').value=data.msg||''; $('fFrom').value=data.from||'';
+      }}finally{delete window[cb]; script.remove();}
+    };
+    var script=document.createElement('script'); script.src=API_URL+'?callback='+cb+'&t='+Date.now();
+    script.onerror=function(){delete window[cb];}; document.head.appendChild(script);
+  }
+  function saveShared(){
+    if(!API_URL || API_URL.indexOf('PASTE_')===0){alert('Ilagay muna ang Google Apps Script Web App URL sa index.html.');return;}
+    var pin=prompt('Admin PIN para i-save ang pagbabago:'); if(pin===null)return;
+    var payload={to:data.to,msg:data.msg,from:data.from,pal:data.pal,photos:data.photos,pin:pin};
+    var body=new URLSearchParams(); body.append('payload',JSON.stringify(payload));
+    fetch(API_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:body.toString()})
+      .then(function(){alert('Naipadala ang save request. I-refresh ang page pagkalipas ng ilang segundo para makita ang shared data.');})
+      .catch(function(){alert('Hindi naipadala ang save request. Suriin ang internet at Apps Script URL.');});
+  }
+
   function render(){
     letter.textContent='';
     function add(t,c){var p=document.createElement('p'); if(c)p.className=c; p.textContent=t; letter.appendChild(p);}
@@ -175,9 +199,10 @@ body{background:var(--bg);display:flex;align-items:center;justify-content:center
     el.addEventListener('input',function(){data[x[1]]=el.value;render()});
   });
   $('editBtn').addEventListener('click',function(){sheet.hidden=!sheet.hidden});
-  $('done').addEventListener('click',function(){sheet.hidden=true});
+  $('done').addEventListener('click',function(){sheet.hidden=true; saveShared();});
   document.addEventListener('keydown',function(e){if(e.key==='Escape'){sheet.hidden=true; gal.hidden=true; stopFW();}});
   render();
+  loadShared();
 
   // gallery
   var gal=$('gal'), idx=0;
@@ -187,7 +212,7 @@ body{background:var(--bg);display:flex;align-items:center;justify-content:center
     var pol=document.createElement('div'); pol.className='pol';
     if(s[idx]){var im=document.createElement('img'); im.src=s[idx]; im.alt='Litrato '+(idx+1); pol.appendChild(im);}
     else{var ph=document.createElement('div'); ph.className='ph'; ph.textContent='♥'; pol.appendChild(ph);}
-    var cp=document.createElement('div'); cp.className='cap'; cp.textContent=s[idx]?'':'Dito ilalagay ang litrato'; pol.appendChild(cp);
+    var cp=document.createElement('div'); cp.className='cap'; cp.textContent=''; if(s[idx]) pol.appendChild(cp);
     f.appendChild(pol); $('galCount').textContent=(idx+1)+' / '+s.length;
     var end=idx===s.length-1; $('hb').hidden=!end; if(end)startFW(); else stopFW();
   }

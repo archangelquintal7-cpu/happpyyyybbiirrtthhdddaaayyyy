@@ -1,0 +1,77 @@
+const SHEET_NAME = 'BirthdayData';
+const DRIVE_FOLDER_NAME = 'Birthday Website Photos';
+// Set this to a private PIN of your choice before deploying.
+const ADMIN_PIN = 'CHANGE_THIS_PIN';
+
+function setup() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(SHEET_NAME);
+  if (!sh) sh = ss.insertSheet(SHEET_NAME);
+  if (sh.getLastRow() === 0) {
+    sh.appendRow(['Updated At', 'Recipient', 'Message', 'Sender', 'Envelope Color', 'Photo URLs (JSON)']);
+  }
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('PHOTO_FOLDER_ID')) {
+    const folder = DriveApp.createFolder(DRIVE_FOLDER_NAME);
+    props.setProperty('PHOTO_FOLDER_ID', folder.getId());
+  }
+  return 'Setup complete. Sheet and Drive folder are ready.';
+}
+
+function doGet(e) {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  let data = null;
+  if (sh && sh.getLastRow() >= 2) {
+    const r = sh.getRange(2, 1, 1, 6).getValues()[0];
+    let photos = [];
+    try { photos = JSON.parse(r[5] || '[]'); } catch (err) {}
+    data = { to: r[1] || '', msg: r[2] || '', from: r[3] || '', pal: r[4] || 'rose', photos: photos };
+  }
+  const result = JSON.stringify({ ok: true, data: data });
+  const callback = e && e.parameter && e.parameter.callback;
+  if (callback && /^[A-Za-z_$][0-9A-Za-z_$]*$/.test(callback)) {
+    return ContentService.createTextOutput(callback + '(' + result + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(result).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    const payload = JSON.parse((e.parameter && e.parameter.payload) || '{}');
+    if (ADMIN_PIN === 'CHANGE_THIS_PIN' || String(payload.pin || '') !== ADMIN_PIN) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const props = PropertiesService.getScriptProperties();
+    let folderId = props.getProperty('PHOTO_FOLDER_ID');
+    if (!folderId) { setup(); folderId = props.getProperty('PHOTO_FOLDER_ID'); }
+    const folder = DriveApp.getFolderById(folderId);
+    const photos = (payload.photos || []).slice(0, 8).map(function(photo, i) {
+      if (typeof photo !== 'string') return '';
+      if (photo.indexOf('data:image/') === 0) {
+        const match = photo.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+        if (!match) return '';
+        const bytes = Utilities.base64Decode(match[2]);
+        const ext = match[1].split('/')[1].replace('jpeg', 'jpg');
+        const blob = Utilities.newBlob(bytes, match[1], 'birthday-photo-' + (i + 1) + '.' + ext);
+        const file = folder.createFile(blob);
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        return 'https://drive.google.com/uc?export=view&id=' + file.getId();
+      }
+      return photo;
+    }).filter(Boolean);
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sh = ss.getSheetByName(SHEET_NAME);
+    if (!sh) { setup(); sh = ss.getSheetByName(SHEET_NAME); }
+    const row = [new Date(), String(payload.to || ''), String(payload.msg || ''),
+      String(payload.from || ''), String(payload.pal || 'rose'), JSON.stringify(photos)];
+    sh.getRange(2, 1, 1, row.length).setValues([row]);
+    return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
